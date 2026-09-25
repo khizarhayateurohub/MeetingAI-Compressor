@@ -27,13 +27,9 @@
       margin-top: 0;
     }
 
-    .file-box {
-      margin: 25px 0;
-    }
-
-    input[type="file"] {
+    input {
       width: 100%;
-      padding: 10px 0;
+      margin: 20px 0;
     }
 
     button {
@@ -48,7 +44,6 @@
 
     button:disabled {
       opacity: 0.6;
-      cursor: not-allowed;
     }
 
     #status {
@@ -56,7 +51,6 @@
       padding: 12px;
       background: #f1f5f9;
       border-radius: 6px;
-      min-height: 20px;
     }
   </style>
 </head>
@@ -71,20 +65,13 @@
     Compress meeting audio or video before sending it to MeetingAI.
   </p>
 
-  <div class="file-box">
-
-    <input
-      type="file"
-      id="fileInput"
-      accept="audio/*,video/*"
-    >
-
-  </div>
-
-  <button
-    id="compressBtn"
-    type="button"
+  <input
+    type="file"
+    id="fileInput"
+    accept="audio/*,video/*"
   >
+
+  <button id="compressBtn">
     Compress Recording
   </button>
 
@@ -94,10 +81,9 @@
 
 </div>
 
-<!-- FFmpeg -->
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+<!-- Single-thread FFmpeg build -->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 
-<!-- MeetingAI compressor -->
 <script src="./compressor.js"></script>
 
 </body>
