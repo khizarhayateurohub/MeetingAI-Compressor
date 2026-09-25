@@ -1,317 +1,158 @@
-const fileInput = document.getElementById('fileInput');
-const compressButton = document.getElementById('compressButton');
-const fileInfo = document.getElementById('fileInfo');
-const statusText = document.getElementById('statusText');
-const progressBar = document.getElementById('progressBar');
-const downloadBox = document.getElementById('downloadBox');
-const downloadLink = document.getElementById('downloadLink');
+const fileInput = document.getElementById("fileInput");
+const compressBtn = document.getElementById("compressBtn");
+const status = document.getElementById("status");
 
 let selectedFile = null;
-let ffmpeg = null;
 
+// File selection
+fileInput.addEventListener("change", function () {
 
-function formatMB(bytes) {
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-
-function setStatus(message) {
-  statusText.textContent = message;
-}
-
-
-function setProgress(value) {
-  progressBar.style.width =
-    Math.max(0, Math.min(100, value)) + '%';
-}
-
-
-fileInput.addEventListener('change', function () {
+  if (fileInput.files.length === 0) {
+    selectedFile = null;
+    status.textContent = "No file selected";
+    return;
+  }
 
   selectedFile = fileInput.files[0];
 
-  downloadBox.style.display = 'none';
-  setProgress(0);
-
-  if (!selectedFile) {
-
-    fileInfo.textContent = 'No file selected';
-    compressButton.disabled = true;
-
-    setStatus('Select an audio or video file.');
-
-    return;
-  }
-
-  fileInfo.textContent =
+  status.textContent =
+    "Selected: " +
     selectedFile.name +
-    ' — ' +
-    formatMB(selectedFile.size);
-
-  compressButton.disabled = false;
-
-  setStatus(
-    'File ready.\n\n' +
-    'Click "Compress Recording".'
-  );
+    " (" +
+    (selectedFile.size / 1024 / 1024).toFixed(1) +
+    " MB)";
 });
 
 
-async function loadFFmpeg() {
+// Compression button
+compressBtn.addEventListener("click", async function () {
 
-  if (ffmpeg) {
+  if (!selectedFile) {
+    status.textContent = "Please select a file first.";
     return;
   }
 
-  if (
-    typeof FFmpeg === 'undefined' ||
-    typeof FFmpeg.createFFmpeg !== 'function'
-  ) {
-    throw new Error(
-      'FFmpeg library did not load correctly.'
-    );
-  }
+  compressBtn.disabled = true;
 
-  setStatus(
-    'Loading compression engine...\n\n' +
-    'Please wait.'
-  );
+  try {
 
-  const createFFmpeg = FFmpeg.createFFmpeg;
-  const fetchFile = FFmpeg.fetchFile;
+    status.textContent = "Loading FFmpeg...";
 
-  ffmpeg = createFFmpeg({
-    log: true
-  });
-
-  ffmpeg.setProgress(function (event) {
-
-    if (
-      event &&
-      typeof event.ratio === 'number'
-    ) {
-
-      setProgress(event.ratio * 100);
-
+    if (typeof FFmpeg === "undefined") {
+      throw new Error("FFmpeg library is not available.");
     }
 
-  });
+    if (typeof FFmpeg.createFFmpeg !== "function") {
+      throw new Error("FFmpeg createFFmpeg function is not available.");
+    }
 
-  await ffmpeg.load();
+    const ffmpeg = FFmpeg.createFFmpeg({
+      log: true
+    });
 
-  window.MeetingAI_fetchFile = fetchFile;
-}
+    await ffmpeg.load();
 
+    status.textContent =
+      "Compressing " +
+      selectedFile.name +
+      "...";
 
-async function compressVideo(file) {
+    const inputName = selectedFile.name;
 
-  const inputName = 'input_video';
-  const outputName = 'compressed_video.mp4';
+    const isVideo =
+      selectedFile.type.startsWith("video/");
 
-  setStatus(
-    'Preparing video...\n\n' +
-    'Please keep this browser tab open.'
-  );
+    const outputName =
+      isVideo
+        ? "MeetingAI_Compressed.mp4"
+        : "MeetingAI_Compressed.mp3";
 
-  setProgress(5);
-
-  ffmpeg.FS(
-    'writeFile',
-    inputName,
-    await window.MeetingAI_fetchFile(file)
-  );
-
-  setStatus(
-    'Compressing video...\n\n' +
-    'Please wait. Large videos can take several minutes.'
-  );
-
-  await ffmpeg.run(
-    '-i',
-    inputName,
-    '-c:v',
-    'libx264',
-    '-preset',
-    'veryfast',
-    '-crf',
-    '32',
-    '-c:a',
-    'aac',
-    '-b:a',
-    '64k',
-    '-movflags',
-    '+faststart',
-    outputName
-  );
-
-  setProgress(95);
-
-  const data =
     ffmpeg.FS(
-      'readFile',
-      outputName
+      "writeFile",
+      inputName,
+      await FFmpeg.fetchFile(selectedFile)
     );
 
-  ffmpeg.FS(
-    'unlink',
-    inputName
-  );
+    if (isVideo) {
 
-  ffmpeg.FS(
-    'unlink',
-    outputName
-  );
-
-  return new Blob(
-    [data.buffer],
-    {
-      type: 'video/mp4'
-    }
-  );
-}
-
-
-async function compressAudio(file) {
-
-  const inputName = 'input_audio';
-  const outputName = 'compressed_audio.mp3';
-
-  setStatus(
-    'Compressing audio...\n\n' +
-    'Please wait.'
-  );
-
-  ffmpeg.FS(
-    'writeFile',
-    inputName,
-    await window.MeetingAI_fetchFile(file)
-  );
-
-  await ffmpeg.run(
-    '-i',
-    inputName,
-    '-c:a',
-    'libmp3lame',
-    '-b:a',
-    '64k',
-    outputName
-  );
-
-  setProgress(95);
-
-  const data =
-    ffmpeg.FS(
-      'readFile',
-      outputName
-    );
-
-  ffmpeg.FS(
-    'unlink',
-    inputName
-  );
-
-  ffmpeg.FS(
-    'unlink',
-    outputName
-  );
-
-  return new Blob(
-    [data.buffer],
-    {
-      type: 'audio/mpeg'
-    }
-  );
-}
-
-
-compressButton.addEventListener(
-  'click',
-  async function () {
-
-    if (!selectedFile) {
-      return;
-    }
-
-    compressButton.disabled = true;
-    downloadBox.style.display = 'none';
-    setProgress(0);
-
-    try {
-
-      await loadFFmpeg();
-
-      let compressedBlob;
-
-      if (
-        selectedFile.type.startsWith('video/')
-      ) {
-
-        compressedBlob =
-          await compressVideo(selectedFile);
-
-      } else {
-
-        compressedBlob =
-          await compressAudio(selectedFile);
-
-      }
-
-      setProgress(100);
-
-      const originalSize =
-        formatMB(selectedFile.size);
-
-      const compressedSize =
-        formatMB(compressedBlob.size);
-
-      const downloadURL =
-        URL.createObjectURL(compressedBlob);
-
-      const originalName =
-        selectedFile.name
-          .replace(/\.[^/.]+$/, '');
-
-      const extension =
-        selectedFile.type.startsWith('video/')
-          ? 'mp4'
-          : 'mp3';
-
-      downloadLink.href = downloadURL;
-
-      downloadLink.download =
-        originalName +
-        '_compressed.' +
-        extension;
-
-      downloadBox.style.display = 'block';
-
-      setStatus(
-        'Compression completed successfully.\n\n' +
-        'Original: ' +
-        originalSize +
-        '\n' +
-        'Compressed: ' +
-        compressedSize +
-        '\n\n' +
-        'Click "Download Compressed File".'
+      await ffmpeg.run(
+        "-i",
+        inputName,
+        "-c:v",
+        "libx264",
+        "-crf",
+        "32",
+        "-preset",
+        "veryfast",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "64k",
+        outputName
       );
 
-    } catch (error) {
+    } else {
 
-      console.error(error);
-
-      setProgress(0);
-
-      setStatus(
-        'Compression failed:\n\n' +
-        error.message
+      await ffmpeg.run(
+        "-i",
+        inputName,
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "64k",
+        outputName
       );
-
-    } finally {
-
-      compressButton.disabled = false;
 
     }
 
+    const output =
+      ffmpeg.FS(
+        "readFile",
+        outputName
+      );
+
+    const blob =
+      new Blob(
+        [output.buffer],
+        {
+          type: isVideo
+            ? "video/mp4"
+            : "audio/mpeg"
+        }
+      );
+
+    const downloadUrl =
+      URL.createObjectURL(blob);
+
+    const downloadLink =
+      document.createElement("a");
+
+    downloadLink.href = downloadUrl;
+    downloadLink.download = outputName;
+
+    document.body.appendChild(downloadLink);
+
+    downloadLink.click();
+
+    downloadLink.remove();
+
+    URL.revokeObjectURL(downloadUrl);
+
+    status.textContent =
+      "Compression completed. The compressed file was downloaded.";
+
+  } catch (error) {
+
+    console.error(error);
+
+    status.textContent =
+      "Compression failed: " +
+      error.message;
+
+  } finally {
+
+    compressBtn.disabled = false;
+
   }
-);
+
+});
